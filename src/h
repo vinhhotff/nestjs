@@ -1,0 +1,241 @@
+// hooks/useRevenueData.ts
+"use client";
+import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-toastify';
+import { 
+  RevenueStats, 
+  RevenueChartData, 
+  TopSellingItem, 
+  OrderAnalytics, 
+  CustomerAnalytics 
+} from '@/src/Types';
+import {
+  getRevenueStats,
+  getRevenueChart,
+  getTopSellingItems,
+  getOrderAnalytics,
+  getCustomerAnalytics,
+  exportRevenueReport
+} from '@/src/api/revenue'; // Adjust the import path as needed
+
+interface UseRevenueDataProps {
+  period: string;
+  customDateRange: { 
+    startDate: string; 
+    endDate: string; 
+  };
+}
+
+interface UseRevenueDataReturn {
+  loading: boolean;
+  exporting: boolean;
+  revenueStats: RevenueStats | null;
+  revenueChart: RevenueChartData[];
+  topSellingItems: TopSellingItem[];
+  orderAnalytics: OrderAnalytics | null;
+  customerAnalytics: CustomerAnalytics | null;
+  fetchAllData: () => Promise<void>;
+  handleExportReport: () => Promise<void>;
+  error: string | null;
+}
+
+export const useRevenueData = ({ 
+  period, 
+  customDateRange 
+}: UseRevenueDataProps): UseRevenueDataReturn => {
+  // State management
+  const [loading, setLoading] = useState<boolean>(true);
+  const [exporting, setExporting] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null);
+  const [revenueChart, setRevenueChart] = useState<RevenueChartData[]>([]);
+  const [topSellingItems, setTopSellingItems] = useState<TopSellingItem[]>([]);
+  const [orderAnalytics, setOrderAnalytics] = useState<OrderAnalytics | null>(null);
+  const [customerAnalytics, setCustomerAnalytics] = useState<CustomerAnalytics | null>(null);
+
+  // Generic fallback function with proper TypeScript typing
+  const fetchWithFallback = useCallback(async <T>(
+    apiCall: () => Promise<T>, 
+    defaultValue: T, 
+    name: string
+  ): Promise<T> => {
+    try {
+      const result = await apiCall();
+      return result;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.warn(`🚨 ${name} API failed, using fallback:`, errorMessage);
+      return defaultValue;
+    }
+  }, []);
+
+  // Helper function to calculate date range
+  const calculateDateRange = useCallback((period: string, customDateRange: { startDate: string; endDate: string }) => {
+    if (period === 'custom') {
+      return {
+        startDate: customDateRange.startDate,
+        endDate: customDateRange.endDate,
+        actualPeriod: undefined
+      };
+    }
+
+    // Calculate days based on period
+    const days = period === '7d' ? 7 : 
+                period === '30d' ? 30 : 
+                period === '90d' ? 90 :
+                period === '1y' ? 365 : 30;
+                
+    const startTimestamp = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const startDate = new Date(startTimestamp).toISOString().split('T')[0];
+    const endDate = new Date().toISOString().split('T')[0];
+
+    return {
+      startDate,
+      endDate,
+      actualPeriod: period
+    };
+  }, []);
+
+  // Main data fetching function
+  const fetchAllData = useCallback(async (): Promise<void> => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { startDate, endDate, actualPeriod } = calculateDateRange(period, customDateRange);
+      
+      // Validate date range for custom period
+      if (period === 'custom' && (!customDateRange.startDate || !customDateRange.endDate)) {
+        throw new Error('Custom date range requires both start and end dates');
+      }
+      
+      // Fetch all data with Promise.all for better performance
+      const results = await Promise.all([
+        fetchWithFallback<RevenueStats | null>(
+          () => getRevenueStats(actualPeriod, startDate, endDate),
+          null,
+          'Revenue Stats'
+        ),
+        fetchWithFallback<RevenueChartData[]>(
+          () => getRevenueChart(actualPeriod || '30d'),
+          [],
+          'Revenue Chart'
+        ),
+        fetchWithFallback<TopSellingItem[]>(
+          () => getTopSellingItems(actualPeriod || '30d', 10),
+          [],
+          'Top Selling Items'
+        ),
+        fetchWithFallback<OrderAnalytics | null>(
+          () => getOrderAnalytics(actualPeriod || '30d'),
+          null,
+          'Order Analytics'
+        ),
+        fetchWithFallback<CustomerAnalytics | null>(
+          () => getCustomerAnalytics(actualPeriod || '30d'),
+          null,
+          'Customer Analytics'
+        ),
+      ]);
+
+      // Destructure results properly
+      const [
+        revenueStatsData,
+        revenueChartData,
+        topItemsData,
+        orderAnalyticsData,
+        customerAnalyticsData,
+      ] = results;
+
+      // Update state
+      setRevenueStats(revenueStatsData);
+      setRevenueChart(revenueChartData);
+      setTopSellingItems(topItemsData);
+      setOrderAnalytics(orderAnalyticsData);
+      setCustomerAnalytics(customerAnalyticsData);
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Error fetching revenue data:', errorMessage);
+      setError(errorMessage);
+      toast.error('Failed to load revenue data');
+    } finally {
+      setLoading(false);
+    }
+  }, [period, customDateRange, fetchWithFallback, calculateDateRange]);
+
+  // Export report function
+  const handleExportReport = useCallback(async (): Promise<void> => {
+    try {
+      setExporting(true);
+      
+      const { startDate, endDate } = calculateDateRange(period, customDateRange);
+
+      // Validate dates
+      if (!startDate || !endDate) {
+        throw new Error('Invalid date range for export');
+      }
+
+      const blob = await exportRevenueReport(startDate, endDate, 'csv');
+      
+      if (!blob || blob.size === 0) {
+        throw new Error('Empty or invalid export data received');
+      }
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `revenue-report-${startDate}-to-${endDate}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      
+      // Cleanup
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(anchor);
+      }, 100);
+      
+      toast.success('Report exported successfully');
+      
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Export failed';
+      console.error('Error exporting report:', errorMessage);
+      toast.error(`Failed to export report: ${errorMessage}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [period, customDateRange, calculateDateRange]);
+
+  // Effect to fetch data when dependencies change
+  useEffect(() => {
+    fetchAllData();
+  }, [fetchAllData]);
+
+  // Return hook values
+  return {
+    loading,
+    exporting,
+    error,
+    revenueStats,
+    revenueChart,
+    topSellingItems,
+    orderAnalytics,
+    customerAnalytics,
+    fetchAllData,
+    handleExportReport
+  };
+};
+
+// Type guards for better type safety
+export const isRevenueStats = (data: unknown): data is RevenueStats => {
+  return data !== null && typeof data === 'object' && 'totalRevenue' in data;
+};
+
+export const isCustomerAnalytics = (data: unknown): data is CustomerAnalytics => {
+  return data !== null && typeof data === 'object' && 'totalCustomers' in data;
+};
+
+export const isOrderAnalytics = (data: unknown): data is OrderAnalytics => {
+  return data !== null && typeof data === 'object' && 'totalOrders' in data;
+};

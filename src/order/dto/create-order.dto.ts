@@ -9,6 +9,7 @@ import {
   ValidateNested,
   IsEnum,
   ArrayMinSize,
+  ValidateIf,
 } from 'class-validator';
 import { OrderType } from '../schemas/order.schema';
 
@@ -56,13 +57,15 @@ export class CreateOnlineOrderDto {
   @ArrayMinSize(1)
   items: OrderItemDto[];
 
+  @ValidateIf((o) => !o.user)
   @IsString()
   @IsNotEmpty()
-  customerName: string;
+  customerName?: string;
 
+  @ValidateIf((o) => !o.user)
   @IsString()
   @IsNotEmpty()
-  customerPhone: string;
+  customerPhone?: string;
 
   @IsEnum(OrderType)
   @IsNotEmpty()
@@ -78,5 +81,5 @@ export class CreateOnlineOrderDto {
 
   @IsMongoId()
   @IsOptional()
-  user?: string; // Optional: if the user is logged in
+  user?: string; // If logged-in user
 }

@@ -72,3 +72,6 @@ export class User extends mongoose.Document {
 
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.plugin(softDeletePlugin);
+
+// Add index for analytics performance
+UserSchema.index({ createdAt: 1 });

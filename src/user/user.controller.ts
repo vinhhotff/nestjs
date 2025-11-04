@@ -27,7 +27,7 @@ import { PaginationResult, SearchUserDto } from './dto/user.dto';
 import { PaginationResponseDto } from '../common/dto/pagination.dto';
 
 // import { User } from '../decorate/setMetadata';
-@Controller('user')
+@Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 

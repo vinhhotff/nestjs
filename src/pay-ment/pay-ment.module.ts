@@ -5,10 +5,13 @@ import { Payment, PaymentSchema } from './schemas/pay-ment.schema';
 import { PaymentController } from './pay-ment.controller';
 import { PayMentService } from './pay-ment.service';
 import { OrderModule } from 'src/order/order.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Payment.name, schema: PaymentSchema }]),OrderModule
+    MongooseModule.forFeature([{ name: Payment.name, schema: PaymentSchema }]),
+    OrderModule,
+    LoyaltyModule
   ],
   controllers: [PaymentController],
   providers: [PayMentService],

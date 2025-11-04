@@ -11,8 +11,8 @@ export enum ReservationStatus {
 
 @Schema({ timestamps: true })
 export class Reservation extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  user: User;
+  @Prop({ type: Types.ObjectId, ref: 'User', required: false })
+  user?: User;
 
   @Prop({ required: true })
   customerName: string;
@@ -20,7 +20,7 @@ export class Reservation extends Document {
   @Prop({ required: true })
   customerPhone: string;
 
-  @Prop({ required: true })
+  @Prop()
   customerEmail?: string;
 
   @Prop({ required: true })

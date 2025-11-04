@@ -74,6 +74,13 @@ export class LoyaltyController {
     return this.loyaltyService.getPointsHistory(userId);
   }
 
+  @Permission('loyalty:findByGuest')
+  @CustomMessage('Lấy điểm theo guest ID')
+  @Get('guest/:guestId')
+  findByGuest(@Param('guestId') guestId: string) {
+    return this.loyaltyService.findByGuestId(guestId);
+  }
+
   @Permission('loyalty:getMyPointsHistory')
   @CustomMessage('Lấy lịch sử điểm của tôi')
   @Get('my-points/history')

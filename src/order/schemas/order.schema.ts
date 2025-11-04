@@ -49,6 +49,9 @@ export class Order extends Document {
   @Prop({ default: false })
   isPaid: boolean;
 
+  @Prop({ default: false })
+  loyaltyAwarded?: boolean;
+
   @Prop()
   specialInstructions?: string; // Ghi chú đặc biệt cho đơn hàng
 
@@ -67,6 +70,9 @@ export class Order extends Document {
 
   @Prop({ required: false })
   deliveryAddress?: string;
+
+  @Prop({ required: false })
+  customerName?: string;
 
   @Prop({ required: false })
   customerPhone?: string;
@@ -95,6 +101,12 @@ export class Order extends Document {
 export const OrderSchema = SchemaFactory.createForClass(Order);
 OrderSchema.plugin(softDeletePlugin);
 
+// Add indexes for analytics performance
+OrderSchema.index({ createdAt: 1 });
+OrderSchema.index({ status: 1 });
+OrderSchema.index({ createdAt: 1, status: 1 }); // Compound index for analytics queries
+OrderSchema.index({ 'items.item': 1 }); // For top-selling queries
+
 export interface IOrder {
   _id: string;
   guest?: Types.ObjectId;
@@ -109,11 +121,13 @@ export interface IOrder {
   status: 'pending' | 'preparing' | 'served' | 'cancelled';
   totalPrice: number;
   isPaid: boolean;
-  specialInstructions?: string;
+  loyaltyAwarded?: boolean;
+  specialInstructions?: string; // Ghi chú đặc biệt cho đơn hàng
   estimatedReadyTime?: Date;
   table?: Types.ObjectId;
   orderType: OrderType;
   deliveryAddress?: string;
+  customerName?: string;
   customerPhone?: string;
   createdAt: Date;
   updatedAt: Date;

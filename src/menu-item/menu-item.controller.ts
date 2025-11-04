@@ -52,18 +52,18 @@ export class MenuItemController {
     );
   }
   @Public()
-  @CustomMessage('Get total number of MenuItems')
-  @Get("count")
-  async getMenuItemCount() {
-    const total = await this.menuItemService.countMenuItems();
-    return { total };
-  }
-
-  @Public()
   @CustomMessage('Fetch List MenuItem')
   @Get()
   findAll() {
     return this.menuItemService.findAll();
+  }
+
+  @Public()
+  @CustomMessage('Get total number of MenuItems')
+  @Get('count')
+  async getMenuItemCount() {
+    const total = await this.menuItemService.countMenuItems();
+    return { total };
   }
 
   @Public()

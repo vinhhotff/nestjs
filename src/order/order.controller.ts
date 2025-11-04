@@ -56,16 +56,22 @@ export class OrderController {
     );
   }
 
+  @Permission('order:findByGuest')
+  @Get('guest')
+  findByGuest(@Query('guestId') guestId: string) {
+    return this.orderService.findByGuest(guestId);
+  }
+
+  @Permission('order:findByUser')
+  @Get('user')
+  findByUser(@Query('userId') userId: string) {
+    return this.orderService.findByUser(userId);
+  }
+
   @Permission('order:findOne')
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.orderService.findById(id);
-  }
-
-  @Permission('order:findByGuest')
-  @Get('guest/:guestId')
-  findByGuest(@Param('guestId') guestId: string) {
-    return this.orderService.findByGuest(guestId);
   }
 
   @Permission('order:updateStatus')

@@ -11,7 +11,7 @@ export class ReservationService {
     @InjectModel(Reservation.name) private reservationModel: Model<Reservation>,
   ) {}
 
-  async create(createReservationDto: CreateReservationDto, user: IUser): Promise<Reservation> {
+  async create(createReservationDto: CreateReservationDto, user?: IUser): Promise<Reservation> {
     const reservationDate = new Date(createReservationDto.reservationDate);
     
     // Kiểm tra ngày đặt bàn không được trong quá khứ
@@ -37,7 +37,7 @@ export class ReservationService {
 
     const reservation = new this.reservationModel({
       ...createReservationDto,
-      user: user._id,
+      user: user?._id,
       reservationDate,
     });
 
@@ -133,7 +133,7 @@ export class ReservationService {
     const reservation = await this.findById(id);
 
     // Kiểm tra quyền hủy (chỉ user tạo hoặc admin mới được hủy)
-    if (userId && reservation.user.toString() !== userId) {
+    if (userId && reservation.user && reservation.user.toString() !== userId) {
       throw new BadRequestException('Bạn không có quyền hủy đặt bàn này');
     }
 

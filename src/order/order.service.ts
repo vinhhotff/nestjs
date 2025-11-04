@@ -37,6 +37,38 @@ export class OrderService {
     private readonly deliveryService: DeliveryService
   ) { }
 
+  private extractEntityId(entity: unknown): string | undefined {
+    if (!entity) {
+      return undefined;
+    }
+
+    if (entity instanceof Types.ObjectId) {
+      return entity.toString();
+    }
+
+    if (typeof entity === 'string') {
+      return entity;
+    }
+
+    if (typeof entity === 'object') {
+      const candidate = entity as { id?: unknown; _id?: unknown };
+
+      if (typeof candidate.id === 'string') {
+        return candidate.id;
+      }
+
+      if (candidate._id instanceof Types.ObjectId) {
+        return candidate._id.toString();
+      }
+
+      if (typeof candidate._id === 'string') {
+        return candidate._id;
+      }
+    }
+
+    return undefined;
+  }
+
   async create(createOrderDto: CreateOrderDto): Promise<Order> {
     const { items, guest, user } = createOrderDto;
 
@@ -138,6 +170,27 @@ export class OrderService {
       );
     }
 
+    // Resolve customer info based on user/guest
+    let resolvedName = customerName;
+    let resolvedPhone = customerPhone;
+
+    if (user) {
+      if (!Types.ObjectId.isValid(user)) {
+        throw new BadRequestException('Invalid user ID format');
+      }
+      const userDoc = await this.userModel.findById(user).exec();
+      if (!userDoc) {
+        throw new NotFoundException('User not found');
+      }
+      resolvedName = resolvedName || userDoc.name || 'Guest';
+      resolvedPhone = resolvedPhone || userDoc.phone || '';
+    } else {
+      // Guest checkout must provide name and phone
+      if (!customerName || !customerPhone) {
+        throw new BadRequestException('customerName and customerPhone are required for guest orders');
+      }
+    }
+
     // Validate menu items and calculate total price
     let totalPrice = 0;
     const validatedItems: {
@@ -148,6 +201,9 @@ export class OrderService {
     }[] = [];
 
     for (const orderItem of items) {
+      if (!Types.ObjectId.isValid(orderItem.item)) {
+        throw new BadRequestException('Invalid menu item ID format');
+      }
       const menuItem = await this.menuItemModel.findById(orderItem.item).exec();
       if (!menuItem) {
         throw new NotFoundException(
@@ -178,7 +234,8 @@ export class OrderService {
       status: OrderStatus.PENDING,
       orderType,
       specialInstructions,
-      customerPhone,
+      customerName: resolvedName,
+      customerPhone: resolvedPhone,
       deliveryAddress:
         orderType === OrderType.DELIVERY ? deliveryAddress : undefined,
       user: user ? user : undefined,
@@ -190,8 +247,8 @@ export class OrderService {
     if (orderType === OrderType.DELIVERY) {
       await this.deliveryService.create({
         order: savedOrder._id,
-        customerName,
-        customerPhone,
+        customerName: resolvedName!,
+        customerPhone: resolvedPhone!,
         deliveryAddress: deliveryAddress!,
       });
     }
@@ -276,6 +333,10 @@ export class OrderService {
   }
 
   async findByGuest(guestId: string): Promise<Order[]> {
+    if (!guestId) {
+      throw new BadRequestException('Guest ID is required');
+    }
+    
     if (!Types.ObjectId.isValid(guestId)) {
       throw new BadRequestException('Invalid guest ID format');
     }
@@ -288,6 +349,10 @@ export class OrderService {
   }
 
   async findByUser(userId: string): Promise<Order[]> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+    
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
@@ -333,16 +398,30 @@ export class OrderService {
       throw new NotFoundException('Order not found');
     }
 
-    // Tự động cộng điểm loyalty khi đơn hàng hoàn thành (served)
-    if (status === OrderStatus.SERVED && order.user) {
-      try {
-        await this.loyaltyService.autoAddPointsFromOrder(
-          order.user.toString(),
-          order.totalPrice
-        );
-      } catch (error) {
-        // Log error nhưng không throw để không ảnh hưởng đến việc cập nhật status
-        throw new BadRequestException('Lỗi khi cộng điểm loyalty:');
+    // Tự động cộng điểm loyalty khi đơn hàng hoàn thành (served) và đã thanh toán
+    if (status === OrderStatus.SERVED) {
+      if (order.isPaid && !order.loyaltyAwarded) {
+        const loyaltyTargetId =
+          this.extractEntityId(order.user) ?? this.extractEntityId(order.guest);
+        if (loyaltyTargetId) {
+          try {
+            await this.loyaltyService.autoAddPointsFromOrder(
+              loyaltyTargetId,
+              order.totalPrice
+            );
+            // đánh dấu đã cộng điểm
+            order.loyaltyAwarded = true;
+            await order.save();
+          } catch (error) {
+            console.error('Lỗi khi cộng điểm loyalty:', error);
+            // Không throw để không ảnh hưởng đến việc cập nhật status
+          }
+        } else {
+          console.warn(
+            'Không xác định được ID để cộng điểm loyalty cho order khi cập nhật trạng thái',
+            order._id.toString()
+          );
+        }
       }
     }
 
@@ -488,7 +567,11 @@ export class OrderService {
     }
 
     const order = await this.orderModel
-      .findByIdAndUpdate(id, { paid: true }, { new: true })
+      .findByIdAndUpdate(
+        id, 
+        { isPaid: markOrderPaidDto.isPaid },
+        { new: true }
+      )
       .populate('items.item', 'name price category images')
       .populate('guest', 'tableCode')
       .populate('user', 'name email')
@@ -496,6 +579,26 @@ export class OrderService {
 
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    // Nếu đã served và giờ đánh dấu paid, thì cộng điểm nếu chưa cộng
+    if (order.isPaid && order.status === OrderStatus.SERVED && !order.loyaltyAwarded) {
+      const loyaltyTargetId =
+        this.extractEntityId(order.user) ?? this.extractEntityId(order.guest);
+      if (loyaltyTargetId) {
+        try {
+          await this.loyaltyService.autoAddPointsFromOrder(loyaltyTargetId, order.totalPrice);
+          order.loyaltyAwarded = true;
+          await order.save();
+        } catch (error) {
+          console.error('Lỗi khi cộng điểm loyalty khi markAsPaid:', error);
+        }
+      } else {
+        console.warn(
+          'Không xác định được ID để cộng điểm loyalty cho order khi markAsPaid',
+          order._id.toString()
+        );
+      }
     }
 
     return order;

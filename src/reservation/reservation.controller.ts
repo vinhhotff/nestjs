@@ -12,7 +12,7 @@ import {
 import { ReservationService } from './reservation.service';
 import { CreateReservationDto, UpdateReservationStatusDto } from './dto/create-reservation.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { User, CustomMessage, Permission } from '../auth/decoration/setMetadata';
+import { User, CustomMessage, Permission, Public } from '../auth/decoration/setMetadata';
 import { IUser } from '../user/user.interface';
 import { ReservationStatus } from './schemas/reservation.schema';
 
@@ -20,6 +20,13 @@ import { ReservationStatus } from './schemas/reservation.schema';
 @UseGuards(JwtAuthGuard)
 export class ReservationController {
   constructor(private readonly reservationService: ReservationService) {}
+
+  @Public()
+  @CustomMessage('Tạo đặt bàn mới (public)')
+  @Post('public')
+  createPublic(@Body() createReservationDto: CreateReservationDto) {
+    return this.reservationService.create(createReservationDto);
+  }
 
   @Permission('reservation:create')
   @CustomMessage('Tạo đặt bàn mới')

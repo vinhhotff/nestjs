@@ -53,7 +53,9 @@ async function bootstrap() {
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
 
-  await app.listen(port || 8080);
+  const server = await app.listen(port || 8080);
+  // Increase timeout for analytics endpoints (5 minutes)
+  server.setTimeout(300000);
 }
 bootstrap();
 

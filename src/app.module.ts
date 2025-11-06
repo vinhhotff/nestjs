@@ -24,11 +24,23 @@ import { AboutModule } from './about/about.module';
 
 import { DeliveryModule } from './delivery/delivery.module';
 import { VoucherModule } from './voucher/voucher.module';
+import { PaymentModule } from './payment/payment.module';
+import { join } from 'path';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      // Use absolute path to ensure .env is found
+      envFilePath: [
+        join(__dirname, '..', '.env'),
+        join(__dirname, '..', '.env.local'),
+        '.env',
+        '.env.local'
+      ],
+      expandVariables: true, // Enable variable expansion in .env
+      // Load .env from process.cwd() as fallback
+      cache: false, // Don't cache so changes are picked up
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
@@ -62,6 +74,7 @@ import { VoucherModule } from './voucher/voucher.module';
     AboutModule,
     DeliveryModule,
     VoucherModule,
+    PaymentModule,
   ],
   controllers: [AppController],
   providers: [

@@ -15,6 +15,25 @@ import { join } from 'path';
 import * as bodyParser from 'body-parser';
 import { DocumentBuilder } from '@nestjs/swagger/dist/document-builder';
 import { SwaggerModule } from '@nestjs/swagger/dist/swagger-module';
+import * as dotenv from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env file manually before NestJS starts
+// This ensures .env is loaded even if ConfigModule has issues
+const envPath = resolve(__dirname, '..', '.env');
+const envLoaded = dotenv.config({ path: envPath });
+console.log('📄 Loading .env from:', envPath);
+if (envLoaded.error) {
+  console.warn('⚠️  Warning: Could not load .env file:', envLoaded.error.message);
+} else {
+  console.log('✅ .env file loaded successfully');
+}
+
+// Debug: Check PayOS env vars (without showing full values)
+console.log('🔍 PayOS env check (main.ts):');
+console.log('  - PAYOS_CLIENT_ID:', process.env.PAYOS_CLIENT_ID ? `✅ Set (${process.env.PAYOS_CLIENT_ID.length} chars)` : '❌ Missing');
+console.log('  - PAYOS_API_KEY:', process.env.PAYOS_API_KEY ? `✅ Set (${process.env.PAYOS_API_KEY.length} chars)` : '❌ Missing');
+console.log('  - PAYOS_CHECKSUM_KEY:', process.env.PAYOS_CHECKSUM_KEY ? `✅ Set (${process.env.PAYOS_CHECKSUM_KEY.length} chars)` : '❌ Missing');
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);

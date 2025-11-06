@@ -52,6 +52,12 @@ export class Order extends Document {
   @Prop({ default: false })
   loyaltyAwarded?: boolean;
 
+  @Prop({ required: false })
+  payosOrderCode?: number; // PayOS order code for payment tracking
+
+  @Prop({ required: false })
+  payosPaymentLinkId?: string; // PayOS payment link ID
+
   @Prop()
   specialInstructions?: string; // Ghi chú đặc biệt cho đơn hàng
 
